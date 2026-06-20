@@ -1,0 +1,36 @@
+---
+- name: Create Talos virtual machines on AlmaLinux
+  hosts: hypervisors
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../config/cluster.yml
+
+  tasks:
+    - name: Check VM disks
+      ansible.builtin.stat:
+        path: "{{ libvirt_pool_path }}/{{ item }}.qcow2"
+      loop: "{{ groups['talos_cluster'] }}"
+      register: talos_vm_disks
+
+    - name: Create VM disks
+      ansible.builtin.command:
+        cmd: "qemu-img create -f qcow2 {{ libvirt_pool_path }}/{{ item.item }}.qcow2 {{ talos_vm_disk_size }}"
+      loop: "{{ talos_vm_disks.results }}"
+      when: not item.stat.exists
+      changed_when: true
+
+    - name: Define Talos domains
+      community.libvirt.virt:
+        command: define
+        xml: "{{ lookup('template', '../templates/libvirt-domain.xml.j2') }}"
+      loop: "{{ groups['talos_cluster'] }}"
+      loop_control:
+        loop_var: talos_node
+
+    - name: Start Talos domains
+      community.libvirt.virt:
+        name: "{{ item }}"
+        state: running
+        autostart: true
+      loop: "{{ groups['talos_cluster'] }}"

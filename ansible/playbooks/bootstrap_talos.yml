@@ -1,0 +1,160 @@
+---
+- name: Generate and apply Talos configuration
+  hosts: hypervisors
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../config/cluster.yml
+
+  tasks:
+    - name: Validate configured control-plane node
+      ansible.builtin.assert:
+        that:
+          - talos_controlplane_node in groups['talos_cluster']
+          - hostvars[talos_controlplane_node].talos_role == "controlplane"
+        fail_msg: "talos_controlplane_node must be a talos_cluster host with talos_role: controlplane."
+
+    - name: Check talosctl is installed on the hypervisor
+      ansible.builtin.command: talosctl version --client
+      register: talosctl_version
+      changed_when: false
+
+    - name: Ensure remote generated directory exists
+      ansible.builtin.file:
+        path: "{{ talos_remote_generated_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Check Talos secrets file
+      ansible.builtin.stat:
+        path: "{{ talos_remote_generated_dir }}/secrets.yaml"
+      register: talos_secrets
+
+    - name: Generate Talos secrets
+      ansible.builtin.command:
+        cmd: "talosctl gen secrets --output-file {{ talos_remote_generated_dir }}/secrets.yaml"
+      when: not talos_secrets.stat.exists
+      changed_when: true
+
+    - name: Check generated Talos config files
+      ansible.builtin.stat:
+        path: "{{ talos_remote_generated_dir }}/{{ item }}"
+      loop:
+        - controlplane.yaml
+        - worker.yaml
+        - talosconfig
+      register: talos_generated_configs
+
+    - name: Generate base Talos machine configs
+      ansible.builtin.command:
+        cmd: >-
+          talosctl gen config {{ cluster_name }} {{ talos_endpoint }}
+          --kubernetes-version {{ talos_kubernetes_version }}
+          --with-secrets {{ talos_remote_generated_dir }}/secrets.yaml
+          --output-dir {{ talos_remote_generated_dir }}
+          --force
+      when: >-
+        talos_regenerate_configs | bool or
+        (talos_generated_configs.results | selectattr('stat.exists', 'equalto', false) | list | length > 0)
+      changed_when: true
+
+    - name: Check whether Talos API is already configured
+      ansible.builtin.command:
+        cmd: >-
+          talosctl --talosconfig {{ talosconfig_path }}
+          --nodes {{ talos_endpoint_ip }}
+          --endpoints {{ talos_endpoint_ip }}
+          version
+      register: talos_existing_cluster
+      changed_when: false
+      failed_when: false
+
+    - name: Render per-node Talos config patches
+      ansible.builtin.template:
+        src: "../templates/talos-config-patch.yaml.j2"
+        dest: "{{ talos_remote_generated_dir }}/{{ item }}.patch.yaml"
+        mode: "0600"
+      loop: "{{ groups['talos_cluster'] }}"
+
+    - name: Initial Talos install and Kubernetes bootstrap
+      when: talos_existing_cluster.rc != 0 or talos_force_initial_apply | bool
+      block:
+        - name: Wait for Talos maintenance API
+          ansible.builtin.command:
+            cmd: "talosctl --nodes {{ hostvars[item].talos_ip }} get disks --insecure"
+          register: talos_maintenance_api
+          until: talos_maintenance_api.rc == 0
+          retries: 60
+          delay: 5
+          changed_when: false
+          loop: "{{ groups['talos_cluster'] }}"
+
+        - name: Apply Talos config to each node
+          ansible.builtin.command:
+            cmd: >-
+              talosctl apply-config
+              --insecure
+              --nodes {{ hostvars[item].talos_ip }}
+              --file {{ talos_remote_generated_dir }}/{{ 'controlplane' if hostvars[item].talos_role == 'controlplane' else 'worker' }}.yaml
+              --config-patch @{{ talos_remote_generated_dir }}/{{ item }}.patch.yaml
+          loop: "{{ groups['talos_cluster'] }}"
+          changed_when: true
+
+        - name: Wait for first control plane after reboot
+          ansible.builtin.command:
+            cmd: >-
+              talosctl --talosconfig {{ talosconfig_path }}
+              --nodes {{ talos_endpoint_ip }}
+              --endpoints {{ talos_endpoint_ip }}
+              version
+          register: talos_node_ready
+          until: talos_node_ready.rc == 0
+          retries: 90
+          delay: 10
+          changed_when: false
+
+        - name: Bootstrap Kubernetes
+          ansible.builtin.command:
+            cmd: >-
+              talosctl --talosconfig {{ talosconfig_path }}
+              --nodes {{ talos_endpoint_ip }}
+              --endpoints {{ talos_endpoint_ip }}
+              bootstrap
+          register: talos_bootstrap
+          changed_when: "'already bootstrapped' not in talos_bootstrap.stderr"
+          failed_when:
+            - talos_bootstrap.rc != 0
+            - "'already bootstrapped' not in talos_bootstrap.stderr"
+
+    - name: Fetch kubeconfig
+      ansible.builtin.command:
+        cmd: >-
+          talosctl --talosconfig {{ talosconfig_path }}
+          --nodes {{ talos_endpoint_ip }}
+          --endpoints {{ talos_endpoint_ip }}
+          kubeconfig {{ kubeconfig_path }} --force
+      changed_when: true
+
+    - name: Ensure local generated directory exists
+      ansible.builtin.file:
+        path: "{{ talos_local_generated_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Fetch kubeconfig from hypervisor to local workspace
+      ansible.builtin.fetch:
+        src: "{{ kubeconfig_path }}"
+        dest: "{{ local_kubeconfig_path }}"
+        flat: true
+
+    - name: Fetch talosconfig from hypervisor to local workspace
+      ansible.builtin.fetch:
+        src: "{{ talosconfig_path }}"
+        dest: "{{ talos_local_generated_dir }}/talosconfig"
+        flat: true
+
+    - name: Show kubeconfig paths
+      ansible.builtin.debug:
+        msg: "Kubeconfig written to {{ kubeconfig_path }} on the hypervisor and {{ local_kubeconfig_path }} locally."

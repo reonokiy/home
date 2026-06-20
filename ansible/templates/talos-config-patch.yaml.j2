@@ -1,0 +1,22 @@
+machine:
+  install:
+    disk: {{ talos_install_disk }}
+  network:
+    hostname: {{ item }}
+    interfaces:
+      - interface: {{ talos_network_interface }}
+        dhcp: false
+        addresses:
+          - {{ hostvars[item].talos_ip }}/{{ talos_network_prefix }}
+        routes:
+          - network: 0.0.0.0/0
+            gateway: {{ talos_gateway }}
+    nameservers:
+{% for nameserver in talos_nameservers %}
+      - {{ nameserver }}
+{% endfor %}
+{% if hostvars[item].talos_role == 'controlplane' %}
+cluster:
+  allowSchedulingOnControlPlanes: {{ talos_allow_scheduling_on_controlplanes | bool | lower }}
+{% endif %}
+

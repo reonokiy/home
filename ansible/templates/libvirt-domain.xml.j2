@@ -1,0 +1,48 @@
+<domain type="kvm">
+  <name>{{ talos_node }}</name>
+  <memory unit="MiB">{{ talos_vm_memory_mb }}</memory>
+  <vcpu placement="static">{{ talos_vm_vcpus }}</vcpu>
+  <os>
+    <type arch="x86_64" machine="{{ libvirt_machine_type }}">hvm</type>
+    <boot dev="hd"/>
+    <boot dev="cdrom"/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode="host-passthrough" check="none"/>
+  <clock offset="utc"/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <devices>
+    <emulator>/usr/libexec/qemu-kvm</emulator>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2"/>
+      <source file="{{ libvirt_pool_path }}/{{ talos_node }}.qcow2"/>
+      <target dev="vda" bus="virtio"/>
+    </disk>
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <source file="{{ libvirt_pool_path }}/talos-{{ talos_version }}.iso"/>
+      <target dev="sda" bus="sata"/>
+      <readonly/>
+    </disk>
+    <interface type="bridge">
+      <mac address="{{ hostvars[talos_node].talos_mac }}"/>
+      <source bridge="{{ libvirt_network_bridge }}"/>
+      <model type="virtio"/>
+    </interface>
+    <serial type="pty">
+      <target type="isa-serial" port="0"/>
+    </serial>
+    <console type="pty">
+      <target type="serial" port="0"/>
+    </console>
+    <graphics type="vnc" port="-1" autoport="yes" listen="127.0.0.1"/>
+    <video>
+      <model type="virtio"/>
+    </video>
+  </devices>
+</domain>

@@ -1,0 +1,22 @@
+---
+all:
+  children:
+    hypervisors:
+      hosts:
+        alma-hypervisor:
+          ansible_host: 203.0.113.10
+          ansible_user: your_user
+          ansible_become: true
+
+    talos_cluster:
+      vars:
+        ansible_connection: local
+      hosts:
+        talos-cp-1:
+          talos_role: controlplane
+          talos_ip: 192.168.122.11
+          talos_mac: "52:54:00:10:00:11"
+        talos-worker-1:
+          talos_role: worker
+          talos_ip: 192.168.122.12
+          talos_mac: "52:54:00:10:00:12"

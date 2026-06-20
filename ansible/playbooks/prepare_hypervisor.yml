@@ -1,0 +1,63 @@
+---
+- name: Prepare AlmaLinux hypervisor for Talos VMs
+  hosts: hypervisors
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../config/cluster.yml
+
+  tasks:
+    - name: Install KVM/libvirt packages
+      ansible.builtin.dnf:
+        name:
+          - qemu-kvm
+          - libvirt
+          - virt-install
+          - python3-libvirt
+          - python3-lxml
+          - libvirt-daemon-config-network
+          - genisoimage
+        state: present
+
+    - name: Enable and start libvirtd
+      ansible.builtin.service:
+        name: libvirtd
+        state: started
+        enabled: true
+
+    - name: Enable default libvirt NAT network for virbr0
+      community.libvirt.virt_net:
+        name: default
+        state: active
+        autostart: true
+      when: libvirt_network_bridge == "virbr0"
+
+    - name: Ensure Talos storage directory exists
+      ansible.builtin.file:
+        path: "{{ libvirt_pool_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Define Talos libvirt storage pool
+      community.libvirt.virt_pool:
+        name: "{{ libvirt_pool_name }}"
+        command: define
+        xml: "{{ lookup('template', '../templates/libvirt-pool.xml.j2') }}"
+
+    - name: Start Talos libvirt storage pool
+      community.libvirt.virt_pool:
+        name: "{{ libvirt_pool_name }}"
+        state: active
+        autostart: true
+
+    - name: Download Talos ISO
+      ansible.builtin.get_url:
+        url: "{{ talos_iso_url }}"
+        dest: "{{ libvirt_pool_path }}/talos-{{ talos_version }}.iso"
+        mode: "0644"
+
+    - name: Install talosctl on the hypervisor
+      ansible.builtin.get_url:
+        url: "{{ talosctl_url }}"
+        dest: /usr/local/bin/talosctl
+        mode: "0755"

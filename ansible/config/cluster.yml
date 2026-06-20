@@ -1,0 +1,59 @@
+---
+# Remote AlmaLinux host settings.
+hypervisor_host: "{{ groups['hypervisors'][0] }}"
+
+# Talos and Kubernetes versions. Change these deliberately when upgrading.
+talos_version: "v1.9.5"
+talos_kubernetes_version: "v1.32.3"
+talos_iso_url: "https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/metal-amd64.iso"
+talosctl_url: "https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/talosctl-linux-amd64"
+
+# Cluster identity and API endpoint.
+cluster_name: "talos-k8s"
+talos_controlplane_node: "talos-cp-1"
+talos_endpoint_ip: "{{ hostvars[talos_controlplane_node].talos_ip }}"
+talos_endpoint: "https://{{ talos_endpoint_ip }}:6443"
+
+# VM sizing.
+talos_vm_memory_mb: 4096
+talos_vm_vcpus: 2
+talos_vm_disk_size: "40G"
+
+# Remote libvirt storage on the AlmaLinux hypervisor.
+# Talos ISO and all VM qcow2 disks live under this directory by default.
+libvirt_pool_name: "talos"
+libvirt_pool_path: "/var/lib/libvirt/images/talos"
+# Talos VM IPs are reachable from the AlmaLinux hypervisor through virbr0.
+# The bootstrap playbook runs talosctl on the hypervisor for this reason.
+libvirt_network_bridge: "virbr0"
+libvirt_machine_type: "pc"
+
+# Talos node networking inside the VMs.
+talos_network_interface: "eth0"
+talos_network_prefix: 24
+talos_gateway: "192.168.122.1"
+talos_nameservers:
+  - "1.1.1.1"
+  - "8.8.8.8"
+
+# Talos installation target inside each VM.
+talos_install_disk: "/dev/vda"
+
+# Keep application workloads on worker nodes by default.
+talos_allow_scheduling_on_controlplanes: false
+
+# Set true only when you intentionally want to re-apply Talos machine config
+# through the insecure maintenance API during initial provisioning.
+talos_force_initial_apply: false
+
+# Set true when you intentionally changed cluster-wide Talos settings and want
+# to overwrite generated/controlplane.yaml, generated/worker.yaml and talosconfig.
+talos_regenerate_configs: false
+
+# Generated state. Remote files live on the AlmaLinux hypervisor because it can
+# reach the Talos VM NAT network. Selected outputs are fetched back locally.
+talos_remote_generated_dir: "{{ libvirt_pool_path }}/generated"
+talos_local_generated_dir: "{{ playbook_dir }}/../generated"
+talosconfig_path: "{{ talos_remote_generated_dir }}/talosconfig"
+kubeconfig_path: "{{ talos_remote_generated_dir }}/kubeconfig"
+local_kubeconfig_path: "{{ talos_local_generated_dir }}/kubeconfig"

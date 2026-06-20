@@ -1,0 +1,3 @@
+---
+# Main deployment configuration is in ../config/cluster.yml.
+# This file is intentionally kept minimal so all editable settings live in one place.
