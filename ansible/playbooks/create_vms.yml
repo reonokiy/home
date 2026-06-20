@@ -1,5 +1,5 @@
 ---
-- name: Create Talos virtual machines on AlmaLinux
+- name: Create AlmaLinux RKE2 virtual machines
   hosts: hypervisors
   become: true
   gather_facts: false
@@ -7,30 +7,50 @@
     - ../config/cluster.yml
 
   tasks:
-    - name: Check VM disks
-      ansible.builtin.stat:
-        path: "{{ libvirt_pool_path }}/{{ item }}.qcow2"
-      loop: "{{ groups['talos_cluster'] }}"
-      register: talos_vm_disks
+    - name: Create AlmaLinux cloud-init VM domains
+      community.libvirt.virt_cloud_instance:
+        name: "{{ item }}"
+        base_image: "{{ almalinux_cloud_image_url }}"
+        image_cache_dir: "{{ almalinux_image_cache_dir }}"
+        disks:
+          - path: "{{ libvirt_pool_path }}/{{ item }}.qcow2"
+            size: "{{ rke2_vm_disk_size_gb }}"
+            format: qcow2
+        memory: "{{ rke2_vm_memory_mb }}"
+        vcpus: "{{ rke2_vm_vcpus }}"
+        networks: >-
+          {{
+            [
+              {
+                'network': libvirt_nat_network_name,
+                'mac': {'address': hostvars[item].vm_mac},
+                'model': {'type': 'virtio'}
+              }
+            ]
+            if libvirt_network_bridge == 'virbr0'
+            else
+            [
+              {
+                'bridge': libvirt_network_bridge,
+                'mac': {'address': hostvars[item].vm_mac},
+                'model': {'type': 'virtio'}
+              }
+            ]
+          }}
+        cloud_init:
+          user_data: "{{ lookup('template', '../templates/almalinux-cloud-init-user-data.yaml.j2') }}"
+          meta_data:
+            instance-id: "{{ item }}"
+            local-hostname: "{{ item }}"
+          disable: true
+        wait_for_cloud_init_reboot: false
+        autostart: true
+        state: present
+      loop: "{{ groups['k8s_cluster'] }}"
 
-    - name: Create VM disks
-      ansible.builtin.command:
-        cmd: "qemu-img create -f qcow2 {{ libvirt_pool_path }}/{{ item.item }}.qcow2 {{ talos_vm_disk_size }}"
-      loop: "{{ talos_vm_disks.results }}"
-      when: not item.stat.exists
-      changed_when: true
-
-    - name: Define Talos domains
-      community.libvirt.virt:
-        command: define
-        xml: "{{ lookup('template', '../templates/libvirt-domain.xml.j2') }}"
-      loop: "{{ groups['talos_cluster'] }}"
-      loop_control:
-        loop_var: talos_node
-
-    - name: Start Talos domains
+    - name: Start AlmaLinux VM domains
       community.libvirt.virt:
         name: "{{ item }}"
         state: running
         autostart: true
-      loop: "{{ groups['talos_cluster'] }}"
+      loop: "{{ groups['k8s_cluster'] }}"

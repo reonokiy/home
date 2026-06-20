@@ -1,5 +1,5 @@
 ---
-- name: Prepare AlmaLinux hypervisor for Talos VMs
+- name: Prepare AlmaLinux hypervisor for RKE2 VMs
   hosts: hypervisors
   become: true
   gather_facts: true
@@ -13,10 +13,10 @@
           - qemu-kvm
           - libvirt
           - virt-install
+          - qemu-img
           - python3-libvirt
           - python3-lxml
           - libvirt-daemon-config-network
-          - genisoimage
         state: present
 
     - name: Enable and start libvirtd
@@ -40,42 +40,33 @@
       changed_when: false
       when: libvirt_network_bridge == "virbr0"
 
-    - name: Add Talos DHCP reservations to default libvirt NAT network
+    - name: Add RKE2 VM DHCP reservations to default libvirt NAT network
       community.libvirt.virt_net:
         name: "{{ libvirt_nat_network_name }}"
         command: modify
-        xml: "<host mac='{{ hostvars[item].talos_mac }}' name='{{ item }}' ip='{{ hostvars[item].talos_ip }}'/>"
-      loop: "{{ groups['talos_cluster'] }}"
+        xml: "<host mac='{{ hostvars[item].vm_mac }}' name='{{ item }}' ip='{{ hostvars[item].ansible_host }}'/>"
+      loop: "{{ groups['k8s_cluster'] }}"
       when:
         - libvirt_network_bridge == "virbr0"
-        - hostvars[item].talos_mac not in libvirt_nat_network_xml.get_xml
+        - hostvars[item].vm_mac not in libvirt_nat_network_xml.get_xml
 
-    - name: Ensure Talos storage directory exists
+    - name: Ensure RKE2 storage directories exist
       ansible.builtin.file:
-        path: "{{ libvirt_pool_path }}"
+        path: "{{ item }}"
         state: directory
         mode: "0755"
+      loop:
+        - "{{ libvirt_pool_path }}"
+        - "{{ almalinux_image_cache_dir }}"
 
-    - name: Define Talos libvirt storage pool
+    - name: Define RKE2 libvirt storage pool
       community.libvirt.virt_pool:
         name: "{{ libvirt_pool_name }}"
         command: define
         xml: "{{ lookup('template', '../templates/libvirt-pool.xml.j2') }}"
 
-    - name: Start Talos libvirt storage pool
+    - name: Start RKE2 libvirt storage pool
       community.libvirt.virt_pool:
         name: "{{ libvirt_pool_name }}"
         state: active
         autostart: true
-
-    - name: Download Talos ISO
-      ansible.builtin.get_url:
-        url: "{{ talos_iso_url }}"
-        dest: "{{ libvirt_pool_path }}/talos-{{ talos_version }}.iso"
-        mode: "0644"
-
-    - name: Install talosctl on the hypervisor
-      ansible.builtin.get_url:
-        url: "{{ talosctl_url }}"
-        dest: "{{ talosctl_path }}"
-        mode: "0755"

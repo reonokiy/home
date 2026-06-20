@@ -2,61 +2,35 @@
 # Remote AlmaLinux host settings.
 hypervisor_host: "{{ groups['hypervisors'][0] }}"
 
-# Talos and Kubernetes versions. Change these deliberately when upgrading.
-talos_version: "v1.9.5"
-talos_kubernetes_version: "v1.32.3"
-talos_iso_url: "https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/metal-amd64.iso"
-talosctl_url: "https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/talosctl-linux-amd64"
-talosctl_path: "/usr/local/bin/talosctl"
-
-# Cluster identity and API endpoint.
-cluster_name: "talos-k8s"
-talos_controlplane_node: "talos-cp-1"
-talos_endpoint_ip: "{{ hostvars[talos_controlplane_node].talos_ip }}"
-talos_endpoint: "https://{{ talos_endpoint_ip }}:6443"
+# AlmaLinux VM image.
+almalinux_version: "10"
+almalinux_cloud_image_url: "https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
+almalinux_image_cache_dir: "{{ libvirt_pool_path }}/images"
 
 # VM sizing.
-talos_vm_memory_mb: 4096
-talos_vm_vcpus: 2
-talos_vm_disk_size: "40G"
+rke2_vm_memory_mb: 4096
+rke2_vm_vcpus: 2
+rke2_vm_disk_size_gb: 40
 
 # Remote libvirt storage on the AlmaLinux hypervisor.
-# Talos ISO and all VM qcow2 disks live under this directory by default.
-libvirt_pool_name: "talos"
-libvirt_pool_path: "/var/lib/libvirt/images/talos"
-# Talos VM IPs are reachable from the AlmaLinux hypervisor through virbr0.
-# The bootstrap playbook runs talosctl on the hypervisor for this reason.
+# AlmaLinux VM qcow2 disks and cached cloud images live under this directory.
+libvirt_pool_name: "rke2"
+libvirt_pool_path: "/var/lib/libvirt/images/rke2"
 libvirt_network_bridge: "virbr0"
 libvirt_nat_network_name: "default"
 libvirt_machine_type: "pc"
 
-# Talos node networking inside the VMs.
-talos_network_interface: "eth0"
-talos_network_method: "dhcp"
-talos_network_prefix: 24
-talos_gateway: "192.168.122.1"
-talos_nameservers:
-  - "1.1.1.1"
-  - "8.8.8.8"
+# Cloud-init SSH access for VM-internal Ansible management.
+rke2_vm_user: "ansible"
+rke2_vm_ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDVZRekiPyCCNgQbG1oPj045RnOw5Fit9KBMd1cNl6lYtonMdAg07tGhwf6zsfmSKR7HUYbjqR9r2z2wonGZIiT7A69VHMUoQOkAXf5w+1Z4JVAXI0b7t9rIEoidW6XG8/hA7XKVML6UaK2sWA6eNSZOQmyK70PN9oLAYJwCXIxb7I5vdVexl3dPbufq6YMlJTQLiDJ16xDeJAupHtW9sxaZFMKYT86IIHfaUohC0w+r8ymLl8KL/AZjD8jSEYj9UZDoDJGf/opUYMj++l937WPdthSA4ZLQzjwExD+FHsKGNbGiZplYefOPza+Ofb6LD6hSeBZiwV8HZFK3gdHzxUV1gn5IYmBreJhBo7bsL0oi0T27j9awHCoTIK6fNQm6Z5TzKNY9CrgBEgEsI/gJ6GQEYVFstHGX1+PP22upfdUqPeFLZoauCZv6OjRH1yDgTQtyc7+lk1R0lKS8crqX526Ibkt7sVHUXXqojAqCw6yi3dkS780/kd3X2lp9ZFklnk= acbqivycgs@gadmin03"
 
-# Talos installation target inside each VM.
-talos_install_disk: "/dev/vda"
-
-# Keep application workloads on worker nodes by default.
-talos_allow_scheduling_on_controlplanes: false
-
-# Set true only when you intentionally want to re-apply Talos machine config
-# through the insecure maintenance API during initial provisioning.
-talos_force_initial_apply: false
-
-# Set true when you intentionally changed cluster-wide Talos settings and want
-# to overwrite generated/controlplane.yaml, generated/worker.yaml and talosconfig.
-talos_regenerate_configs: false
-
-# Generated state. Remote files live on the AlmaLinux hypervisor because it can
-# reach the Talos VM NAT network. Selected outputs are fetched back locally.
-talos_remote_generated_dir: "{{ libvirt_pool_path }}/generated"
-talos_local_generated_dir: "{{ playbook_dir }}/../generated"
-talosconfig_path: "{{ talos_remote_generated_dir }}/talosconfig"
-kubeconfig_path: "{{ talos_remote_generated_dir }}/kubeconfig"
-local_kubeconfig_path: "{{ talos_local_generated_dir }}/kubeconfig"
+# RKE2 role settings. See lablabs.rke2 defaults for all supported variables.
+rke2_version: "v1.35.1+rke2r1"
+rke2_token: "change-me-rke2-token"
+rke2_ha_mode: false
+rke2_download_kubeconf: true
+rke2_download_kubeconf_path: "{{ playbook_dir }}/../generated"
+rke2_download_kubeconf_file_name: "rke2.yaml"
+rke2_api_ip: "{{ hostvars[groups['masters'][0]].ansible_host }}"
+rke2_server_node_taints:
+  - "CriticalAddonsOnly=true:NoExecute"

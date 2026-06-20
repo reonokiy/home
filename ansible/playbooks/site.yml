@@ -1,5 +1,4 @@
 ---
 - import_playbook: prepare_hypervisor.yml
 - import_playbook: create_vms.yml
-- import_playbook: bootstrap_talos.yml
-
+- import_playbook: install_rke2.yml

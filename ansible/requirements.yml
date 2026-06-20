@@ -4,3 +4,5 @@ collections:
   - name: community.general
   - name: community.libvirt
 
+roles:
+  - name: lablabs.rke2

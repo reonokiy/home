@@ -8,15 +8,21 @@ all:
           ansible_user: your_user
           ansible_become: true
 
-    talos_cluster:
+    k8s_cluster:
       vars:
-        ansible_connection: local
-      hosts:
-        talos-cp-1:
-          talos_role: controlplane
-          talos_ip: 192.168.122.11
-          talos_mac: "52:54:00:10:00:11"
-        talos-worker-1:
-          talos_role: worker
-          talos_ip: 192.168.122.12
-          talos_mac: "52:54:00:10:00:12"
+        ansible_user: ansible
+        ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+        ansible_ssh_common_args: >-
+          -o StrictHostKeyChecking=accept-new
+          -o ProxyCommand="ssh -W %h:%p your_user@203.0.113.10"
+      children:
+        masters:
+          hosts:
+            rke2-server-1:
+              ansible_host: 192.168.122.11
+              vm_mac: "52:54:00:10:00:11"
+        workers:
+          hosts:
+            rke2-agent-1:
+              ansible_host: 192.168.122.12
+              vm_mac: "52:54:00:10:00:12"

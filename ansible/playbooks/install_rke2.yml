@@ -1,0 +1,54 @@
+---
+- name: Wait for AlmaLinux RKE2 VMs to become reachable
+  hosts: k8s_cluster
+  gather_facts: false
+
+  tasks:
+    - name: Wait for SSH on VM
+      ansible.builtin.wait_for_connection:
+        timeout: 600
+        delay: 10
+
+- name: Prepare AlmaLinux RKE2 nodes
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Ensure required base packages are installed
+      ansible.builtin.dnf:
+        name:
+          - curl
+          - iproute
+          - iptables
+          - tar
+          - gzip
+        state: present
+
+    - name: Disable firewalld for libvirt lab network
+      ansible.builtin.systemd:
+        name: firewalld
+        state: stopped
+        enabled: false
+      failed_when: false
+
+- name: Deploy RKE2 with lablabs.rke2
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../config/cluster.yml
+
+  pre_tasks:
+    - name: Ensure local generated directory exists
+      ansible.builtin.file:
+        path: "{{ rke2_download_kubeconf_path }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+  roles:
+    - role: lablabs.rke2
+
