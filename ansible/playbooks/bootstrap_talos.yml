@@ -76,12 +76,40 @@
         mode: "0600"
       loop: "{{ groups['talos_cluster'] }}"
 
+    - name: Read libvirt DHCP leases for Talos maintenance IPs
+      ansible.builtin.slurp:
+        src: /var/lib/libvirt/dnsmasq/virbr0.status
+      register: libvirt_dhcp_leases_file
+      changed_when: false
+      failed_when: false
+      when: libvirt_network_bridge == "virbr0"
+
+    - name: Parse libvirt DHCP leases
+      ansible.builtin.set_fact:
+        libvirt_dhcp_leases: >-
+          {{
+            (libvirt_dhcp_leases_file.content | b64decode | from_json)
+            if libvirt_network_bridge == "virbr0" and libvirt_dhcp_leases_file.content is defined
+            else []
+          }}
+
     - name: Initial Talos install and Kubernetes bootstrap
       when: talos_existing_cluster.rc != 0 or talos_force_initial_apply | bool
       block:
         - name: Wait for Talos maintenance API
           ansible.builtin.command:
-            cmd: "{{ talosctl_path }} --nodes {{ hostvars[item].talos_ip }} get disks --insecure"
+            cmd: >-
+              {{ talosctl_path }}
+              --nodes {{
+                (
+                  libvirt_dhcp_leases
+                  | selectattr('mac-address', 'equalto', hostvars[item].talos_mac)
+                  | map(attribute='ip-address')
+                  | first
+                  | default(hostvars[item].talos_ip, true)
+                )
+              }}
+              get disks --insecure
           register: talos_maintenance_api
           until: talos_maintenance_api.rc == 0
           retries: 60
@@ -94,7 +122,15 @@
             cmd: >-
               {{ talosctl_path }} apply-config
               --insecure
-              --nodes {{ hostvars[item].talos_ip }}
+              --nodes {{
+                (
+                  libvirt_dhcp_leases
+                  | selectattr('mac-address', 'equalto', hostvars[item].talos_mac)
+                  | map(attribute='ip-address')
+                  | first
+                  | default(hostvars[item].talos_ip, true)
+                )
+              }}
               --file {{ talos_remote_generated_dir }}/{{ 'controlplane' if hostvars[item].talos_role == 'controlplane' else 'worker' }}.yaml
               --config-patch @{{ talos_remote_generated_dir }}/{{ item }}.patch.yaml
           loop: "{{ groups['talos_cluster'] }}"

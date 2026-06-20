@@ -27,6 +27,7 @@ libvirt_pool_path: "/var/lib/libvirt/images/talos"
 # Talos VM IPs are reachable from the AlmaLinux hypervisor through virbr0.
 # The bootstrap playbook runs talosctl on the hypervisor for this reason.
 libvirt_network_bridge: "virbr0"
+libvirt_nat_network_name: "default"
 libvirt_machine_type: "pc"
 
 # Talos node networking inside the VMs.

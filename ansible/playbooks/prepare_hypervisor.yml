@@ -27,10 +27,28 @@
 
     - name: Enable default libvirt NAT network for virbr0
       community.libvirt.virt_net:
-        name: default
+        name: "{{ libvirt_nat_network_name }}"
         state: active
         autostart: true
       when: libvirt_network_bridge == "virbr0"
+
+    - name: Read default libvirt NAT network XML
+      community.libvirt.virt_net:
+        name: "{{ libvirt_nat_network_name }}"
+        command: get_xml
+      register: libvirt_nat_network_xml
+      changed_when: false
+      when: libvirt_network_bridge == "virbr0"
+
+    - name: Add Talos DHCP reservations to default libvirt NAT network
+      community.libvirt.virt_net:
+        name: "{{ libvirt_nat_network_name }}"
+        command: modify
+        xml: "<host mac='{{ hostvars[item].talos_mac }}' name='{{ item }}' ip='{{ hostvars[item].talos_ip }}'/>"
+      loop: "{{ groups['talos_cluster'] }}"
+      when:
+        - libvirt_network_bridge == "virbr0"
+        - hostvars[item].talos_mac not in libvirt_nat_network_xml.get_xml
 
     - name: Ensure Talos storage directory exists
       ansible.builtin.file:
