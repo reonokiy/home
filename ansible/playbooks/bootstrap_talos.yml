@@ -122,6 +122,7 @@
             cmd: >-
               {{ talosctl_path }} apply-config
               --insecure
+              --mode {{ talos_initial_apply_mode }}
               --nodes {{
                 (
                   libvirt_dhcp_leases

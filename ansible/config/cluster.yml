@@ -48,6 +48,7 @@ talos_allow_scheduling_on_controlplanes: false
 # Set true only when you intentionally want to re-apply Talos machine config
 # through the insecure maintenance API during initial provisioning.
 talos_force_initial_apply: false
+talos_initial_apply_mode: "reboot"
 
 # Set true when you intentionally changed cluster-wide Talos settings and want
 # to overwrite generated/controlplane.yaml, generated/worker.yaml and talosconfig.
