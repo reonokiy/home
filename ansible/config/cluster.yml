@@ -7,6 +7,7 @@ talos_version: "v1.9.5"
 talos_kubernetes_version: "v1.32.3"
 talos_iso_url: "https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/metal-amd64.iso"
 talosctl_url: "https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/talosctl-linux-amd64"
+talosctl_path: "/usr/local/bin/talosctl"
 
 # Cluster identity and API endpoint.
 cluster_name: "talos-k8s"

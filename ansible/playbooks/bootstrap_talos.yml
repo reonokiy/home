@@ -15,7 +15,7 @@
         fail_msg: "talos_controlplane_node must be a talos_cluster host with talos_role: controlplane."
 
     - name: Check talosctl is installed on the hypervisor
-      ansible.builtin.command: talosctl version --client
+      ansible.builtin.command: "{{ talosctl_path }} version --client"
       register: talosctl_version
       changed_when: false
 
@@ -32,7 +32,7 @@
 
     - name: Generate Talos secrets
       ansible.builtin.command:
-        cmd: "talosctl gen secrets --output-file {{ talos_remote_generated_dir }}/secrets.yaml"
+        cmd: "{{ talosctl_path }} gen secrets --output-file {{ talos_remote_generated_dir }}/secrets.yaml"
       when: not talos_secrets.stat.exists
       changed_when: true
 
@@ -48,7 +48,7 @@
     - name: Generate base Talos machine configs
       ansible.builtin.command:
         cmd: >-
-          talosctl gen config {{ cluster_name }} {{ talos_endpoint }}
+          {{ talosctl_path }} gen config {{ cluster_name }} {{ talos_endpoint }}
           --kubernetes-version {{ talos_kubernetes_version }}
           --with-secrets {{ talos_remote_generated_dir }}/secrets.yaml
           --output-dir {{ talos_remote_generated_dir }}
@@ -61,7 +61,7 @@
     - name: Check whether Talos API is already configured
       ansible.builtin.command:
         cmd: >-
-          talosctl --talosconfig {{ talosconfig_path }}
+          {{ talosctl_path }} --talosconfig {{ talosconfig_path }}
           --nodes {{ talos_endpoint_ip }}
           --endpoints {{ talos_endpoint_ip }}
           version
@@ -81,7 +81,7 @@
       block:
         - name: Wait for Talos maintenance API
           ansible.builtin.command:
-            cmd: "talosctl --nodes {{ hostvars[item].talos_ip }} get disks --insecure"
+            cmd: "{{ talosctl_path }} --nodes {{ hostvars[item].talos_ip }} get disks --insecure"
           register: talos_maintenance_api
           until: talos_maintenance_api.rc == 0
           retries: 60
@@ -92,7 +92,7 @@
         - name: Apply Talos config to each node
           ansible.builtin.command:
             cmd: >-
-              talosctl apply-config
+              {{ talosctl_path }} apply-config
               --insecure
               --nodes {{ hostvars[item].talos_ip }}
               --file {{ talos_remote_generated_dir }}/{{ 'controlplane' if hostvars[item].talos_role == 'controlplane' else 'worker' }}.yaml
@@ -103,7 +103,7 @@
         - name: Wait for first control plane after reboot
           ansible.builtin.command:
             cmd: >-
-              talosctl --talosconfig {{ talosconfig_path }}
+              {{ talosctl_path }} --talosconfig {{ talosconfig_path }}
               --nodes {{ talos_endpoint_ip }}
               --endpoints {{ talos_endpoint_ip }}
               version
@@ -116,7 +116,7 @@
         - name: Bootstrap Kubernetes
           ansible.builtin.command:
             cmd: >-
-              talosctl --talosconfig {{ talosconfig_path }}
+              {{ talosctl_path }} --talosconfig {{ talosconfig_path }}
               --nodes {{ talos_endpoint_ip }}
               --endpoints {{ talos_endpoint_ip }}
               bootstrap
@@ -129,7 +129,7 @@
     - name: Fetch kubeconfig
       ansible.builtin.command:
         cmd: >-
-          talosctl --talosconfig {{ talosconfig_path }}
+          {{ talosctl_path }} --talosconfig {{ talosconfig_path }}
           --nodes {{ talos_endpoint_ip }}
           --endpoints {{ talos_endpoint_ip }}
           kubeconfig {{ kubeconfig_path }} --force
