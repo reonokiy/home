@@ -22,16 +22,16 @@
           {{
             [
               {
-                'network': libvirt_nat_network_name,
+                'network': libvirt_vm_network_name,
                 'mac': {'address': hostvars[item].vm_mac},
                 'model': {'type': 'virtio'}
               }
             ]
-            if libvirt_network_bridge == 'virbr0'
+            if libvirt_vm_network_mode == 'nat'
             else
             [
               {
-                'bridge': libvirt_network_bridge,
+                'bridge': libvirt_vm_bridge_name,
                 'mac': {'address': hostvars[item].vm_mac},
                 'model': {'type': 'virtio'}
               }

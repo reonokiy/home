@@ -25,29 +25,29 @@
         state: started
         enabled: true
 
-    - name: Enable default libvirt NAT network for virbr0
+    - name: Enable libvirt NAT network
       community.libvirt.virt_net:
-        name: "{{ libvirt_nat_network_name }}"
+        name: "{{ libvirt_vm_network_name }}"
         state: active
         autostart: true
-      when: libvirt_network_bridge == "virbr0"
+      when: libvirt_vm_network_mode == "nat"
 
-    - name: Read default libvirt NAT network XML
+    - name: Read libvirt NAT network XML
       community.libvirt.virt_net:
-        name: "{{ libvirt_nat_network_name }}"
+        name: "{{ libvirt_vm_network_name }}"
         command: get_xml
       register: libvirt_nat_network_xml
       changed_when: false
-      when: libvirt_network_bridge == "virbr0"
+      when: libvirt_vm_network_mode == "nat"
 
-    - name: Add RKE2 VM DHCP reservations to default libvirt NAT network
+    - name: Add RKE2 VM DHCP reservations to libvirt NAT network
       community.libvirt.virt_net:
-        name: "{{ libvirt_nat_network_name }}"
+        name: "{{ libvirt_vm_network_name }}"
         command: modify
         xml: "<host mac='{{ hostvars[item].vm_mac }}' name='{{ item }}' ip='{{ hostvars[item].ansible_host }}'/>"
       loop: "{{ groups['k8s_cluster'] }}"
       when:
-        - libvirt_network_bridge == "virbr0"
+        - libvirt_vm_network_mode == "nat"
         - hostvars[item].vm_mac not in libvirt_nat_network_xml.get_xml
 
     - name: Ensure RKE2 storage directories exist

@@ -16,8 +16,12 @@ rke2_vm_disk_size_gb: 40
 # AlmaLinux VM qcow2 disks and cached cloud images live under this directory.
 libvirt_pool_name: "rke2"
 libvirt_pool_path: "/var/lib/libvirt/images/rke2"
-libvirt_network_bridge: "virbr0"
-libvirt_nat_network_name: "default"
+
+# VM networking.
+# Use "nat" for libvirt's managed NAT network, or "bridge" for an existing host bridge.
+libvirt_vm_network_mode: "nat"
+libvirt_vm_network_name: "default"
+libvirt_vm_bridge_name: "virbr0"
 libvirt_machine_type: "pc"
 
 # Cloud-init SSH access for VM-internal Ansible management.
