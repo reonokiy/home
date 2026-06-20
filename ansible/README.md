@@ -29,6 +29,8 @@ python -m pip install -r requirements.txt
 - `inventory/hosts.yml`：宿主机 SSH 信息、RKE2 VM IP/MAC、ProxyCommand。
 - `config/cluster.yml`：AlmaLinux 镜像、VM 规格、RKE2 版本、token、kubeconfig 输出路径。
 
+`inventory/hosts.yml` 里的 known_hosts 路径通过 `{{ inventory_dir }}/../known_hosts` 计算，不依赖固定的本机仓库目录。`libvirt_pool_path` 是远程宿主机上的 VM 磁盘目录，默认是 `/var/lib/libvirt/images/rke2`，需要改磁盘位置时只改 `config/cluster.yml`。
+
 ## 执行
 
 分步执行：
