@@ -85,8 +85,6 @@ ansible-playbook playbooks/site.yml
 
 如果你明确要重新走首次 `talosctl apply-config --insecure` 流程，把 `config/cluster.yml` 里的 `talos_force_initial_apply` 临时设为 `true`。注意这只适合节点仍处于 Talos maintenance 模式时使用。
 
-首次 `apply-config` 默认使用 `talos_initial_apply_mode: reboot`，确保从 ISO maintenance mode 写入配置后重启进入安装后的 Talos 系统。
-
 如果首次安装过程中网络配置写错，节点可能已经写入半安装状态但 Talos API 不可用。此时在远程 AlmaLinux 宿主机上重置这两块 VM 磁盘，然后重新运行 playbook：
 
 ```bash
@@ -134,8 +132,6 @@ KUBECONFIG=generated/kubeconfig.local kubectl get nodes
 - `talos_endpoint_ip`：默认取 `talos_controlplane_node` 的 IP。生产环境可改成负载均衡或 VIP。
 - `talos_install_disk`：默认 `/dev/vda`，对应 libvirt XML 里的 virtio 磁盘。
 - `talos_allow_scheduling_on_controlplanes`：默认 `false`，业务负载只调度到 worker。
-- `talos_initial_apply_mode`：默认 `reboot`，用于首次从 Talos maintenance mode 应用配置。
-
 ## 注意
 
 远程 `/var/lib/libvirt/images/talos/generated/` 内会包含 Talos secrets、talosconfig 和 kubeconfig；本地 `generated/` 会保存拉回来的 kubeconfig/talosconfig。不要提交或公开这些文件。
