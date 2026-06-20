@@ -5,12 +5,16 @@ machine:
     hostname: {{ item }}
     interfaces:
       - interface: {{ talos_network_interface }}
+{% if talos_network_method == 'dhcp' %}
+        dhcp: true
+{% else %}
         dhcp: false
         addresses:
           - {{ hostvars[item].talos_ip }}/{{ talos_network_prefix }}
         routes:
           - network: 0.0.0.0/0
             gateway: {{ talos_gateway }}
+{% endif %}
     nameservers:
 {% for nameserver in talos_nameservers %}
       - {{ nameserver }}
@@ -19,4 +23,3 @@ machine:
 cluster:
   allowSchedulingOnControlPlanes: {{ talos_allow_scheduling_on_controlplanes | bool | lower }}
 {% endif %}
-

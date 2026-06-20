@@ -11,7 +11,7 @@
 
 网络模型：默认 `libvirt_network_bridge: virbr0` 使用远程宿主机的 libvirt NAT 网络。Ansible 会把 `talosctl` 安装到 AlmaLinux 宿主机，并在宿主机上初始化 Talos，因为宿主机能访问 `192.168.122.x` 的 VM IP。控制机不需要直接访问 Talos VM。
 
-首次启动 Talos ISO 时，Talos maintenance 模式会先通过 DHCP 获取地址。使用 `virbr0` 时，playbook 会在 libvirt default NAT 网络里为每个 Talos VM 的 MAC 添加 DHCP 固定租约，确保它们拿到 inventory 中配置的 `talos_ip`。
+首次启动 Talos ISO 时，Talos maintenance 模式会先通过 DHCP 获取地址。使用 `virbr0` 时，playbook 会在 libvirt default NAT 网络里为每个 Talos VM 的 MAC 添加 DHCP 固定租约，确保它们拿到 inventory 中配置的 `talos_ip`。Talos 节点默认也使用 DHCP，由 libvirt reservation 保证地址固定。
 
 ## 初始化
 
@@ -85,6 +85,16 @@ ansible-playbook playbooks/site.yml
 
 如果你明确要重新走首次 `talosctl apply-config --insecure` 流程，把 `config/cluster.yml` 里的 `talos_force_initial_apply` 临时设为 `true`。注意这只适合节点仍处于 Talos maintenance 模式时使用。
 
+如果首次安装过程中网络配置写错，节点可能已经写入半安装状态但 Talos API 不可用。此时在远程 AlmaLinux 宿主机上重置这两块 VM 磁盘，然后重新运行 playbook：
+
+```bash
+sudo virsh --connect qemu:///system destroy talos-cp-1 || true
+sudo virsh --connect qemu:///system destroy talos-worker-1 || true
+sudo rm -f /var/lib/libvirt/images/talos/talos-cp-1.qcow2
+sudo rm -f /var/lib/libvirt/images/talos/talos-worker-1.qcow2
+sudo rm -rf /var/lib/libvirt/images/talos/generated
+```
+
 完成后 kubeconfig 会写到：
 
 ```bash
@@ -116,6 +126,7 @@ KUBECONFIG=generated/kubeconfig.local kubectl get nodes
 - `libvirt_pool_path`：远程 AlmaLinux 宿主机上的统一存储目录。默认 `/var/lib/libvirt/images/talos`，Talos ISO 和 VM qcow2 磁盘都放在这里。
 - `libvirt_network_bridge`：默认 `virbr0`。Talos 初始化命令会在 AlmaLinux 宿主机上执行，所以 VM IP 只需要从宿主机可达。
 - `libvirt_nat_network_name`：默认 `default`，用于给 `virbr0` NAT 网络添加 Talos DHCP 固定租约。
+- `talos_network_method`：默认 `dhcp`，配合 libvirt DHCP 固定租约使用。需要 Talos 内部静态地址时可改成 `static`。
 - `talos_gateway` / `talos_network_prefix` / `talos_nameservers`：必须匹配 VM 所在网络。
 - `talos_controlplane_node`：默认 `talos-cp-1`，用于决定 Kubernetes API endpoint。
 - `talos_endpoint_ip`：默认取 `talos_controlplane_node` 的 IP。生产环境可改成负载均衡或 VIP。

@@ -32,6 +32,7 @@ libvirt_machine_type: "pc"
 
 # Talos node networking inside the VMs.
 talos_network_interface: "eth0"
+talos_network_method: "dhcp"
 talos_network_prefix: 24
 talos_gateway: "192.168.122.1"
 talos_nameservers:
