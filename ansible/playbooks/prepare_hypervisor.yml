@@ -17,13 +17,96 @@
           - python3-libvirt
           - python3-lxml
           - libvirt-daemon-config-network
+          - NetworkManager
         state: present
+
+    - name: Validate libvirt VM network mode
+      ansible.builtin.assert:
+        that:
+          - libvirt_vm_network_mode in ["nat", "bridge"]
+        fail_msg: "libvirt_vm_network_mode must be either 'nat' or 'bridge'."
+
+    - name: Require a dedicated physical NIC when managing the VM bridge
+      ansible.builtin.assert:
+        that:
+          - libvirt_vm_bridge_physical_interface | length > 0
+        fail_msg: "Set libvirt_vm_bridge_physical_interface to the dedicated host NIC before using managed bridge mode."
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
+
+    - name: Refuse to bridge the management SSH interface
+      ansible.builtin.assert:
+        that:
+          - libvirt_vm_bridge_physical_interface != ansible_default_ipv4.interface
+        fail_msg: "Refusing to enslave the current management interface {{ ansible_default_ipv4.interface }} into {{ libvirt_vm_bridge_name }}."
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
+        - ansible_default_ipv4.interface is defined
+
+    - name: Require the dedicated physical NIC to exist
+      ansible.builtin.assert:
+        that:
+          - libvirt_vm_bridge_physical_interface in ansible_facts.interfaces
+        fail_msg: "Dedicated NIC {{ libvirt_vm_bridge_physical_interface }} was not found on the hypervisor."
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
 
     - name: Enable and start libvirtd
       ansible.builtin.service:
         name: libvirtd
         state: started
         enabled: true
+
+    - name: Enable and start NetworkManager
+      ansible.builtin.service:
+        name: NetworkManager
+        state: started
+        enabled: true
+
+    - name: Create dedicated VM bridge
+      community.general.nmcli:
+        type: bridge
+        conn_name: "{{ libvirt_vm_bridge_name }}"
+        ifname: "{{ libvirt_vm_bridge_name }}"
+        ip4: "{{ libvirt_vm_bridge_host_ip_cidr if libvirt_vm_bridge_host_ip_cidr | length > 0 else omit }}"
+        method4: "{{ 'manual' if libvirt_vm_bridge_host_ip_cidr | length > 0 else 'disabled' }}"
+        method6: disabled
+        autoconnect: true
+        state: present
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
+
+    - name: Attach dedicated physical NIC to VM bridge
+      community.general.nmcli:
+        type: bridge-slave
+        conn_name: "{{ libvirt_vm_bridge_name }}-{{ libvirt_vm_bridge_physical_interface }}"
+        ifname: "{{ libvirt_vm_bridge_physical_interface }}"
+        master: "{{ libvirt_vm_bridge_name }}"
+        autoconnect: true
+        state: present
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
+
+    - name: Bring up dedicated VM bridge
+      community.general.nmcli:
+        conn_name: "{{ libvirt_vm_bridge_name }}"
+        state: up
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
+
+    - name: Bring up dedicated physical NIC bridge slave
+      community.general.nmcli:
+        conn_name: "{{ libvirt_vm_bridge_name }}-{{ libvirt_vm_bridge_physical_interface }}"
+        state: up
+      when:
+        - libvirt_vm_network_mode == "bridge"
+        - libvirt_vm_bridge_manage | bool
 
     - name: Enable libvirt NAT network
       community.libvirt.virt_net:

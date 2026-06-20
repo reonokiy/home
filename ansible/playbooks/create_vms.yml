@@ -42,6 +42,7 @@
           meta_data:
             instance-id: "{{ item }}"
             local-hostname: "{{ item }}"
+          network_config: "{{ lookup('template', '../templates/almalinux-cloud-init-network-config.yaml.j2') }}"
           disable: true
         wait_for_cloud_init_reboot: false
         autostart: true

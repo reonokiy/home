@@ -18,11 +18,22 @@ libvirt_pool_name: "rke2"
 libvirt_pool_path: "/var/lib/libvirt/images/rke2"
 
 # VM networking.
-# Use "nat" for libvirt's managed NAT network, or "bridge" for an existing host bridge.
-libvirt_vm_network_mode: "nat"
+# Use "nat" for libvirt's managed NAT network, or "bridge" for a dedicated host NIC.
+libvirt_vm_network_mode: "bridge"
 libvirt_vm_network_name: "default"
-libvirt_vm_bridge_name: "virbr0"
+libvirt_vm_bridge_name: "br-rke2"
+libvirt_vm_bridge_manage: true
+libvirt_vm_bridge_physical_interface: "eno1"
+libvirt_vm_bridge_host_ip_cidr: "192.168.122.1/24"
 libvirt_machine_type: "pc"
+
+# VM static network config. Required for bridge mode because libvirt DHCP is not used.
+rke2_vm_static_network: true
+rke2_vm_network_prefix: 24
+rke2_vm_gateway4: ""
+rke2_vm_dns4:
+  - "1.1.1.1"
+  - "8.8.8.8"
 
 # Cloud-init SSH access for VM-internal Ansible management.
 rke2_vm_user: "ansible"

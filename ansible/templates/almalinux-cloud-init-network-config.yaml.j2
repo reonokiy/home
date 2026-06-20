@@ -1,0 +1,25 @@
+version: 2
+ethernets:
+  primary:
+    match:
+      macaddress: "{{ hostvars[item].vm_mac | lower }}"
+    set-name: eth0
+{% if rke2_vm_static_network | bool %}
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - "{{ hostvars[item].ansible_host }}/{{ rke2_vm_network_prefix }}"
+{% if rke2_vm_gateway4 | length > 0 %}
+    gateway4: "{{ rke2_vm_gateway4 }}"
+{% endif %}
+{% if rke2_vm_dns4 | length > 0 %}
+    nameservers:
+      addresses:
+{% for dns_server in rke2_vm_dns4 %}
+        - "{{ dns_server }}"
+{% endfor %}
+{% endif %}
+{% else %}
+    dhcp4: true
+    dhcp6: false
+{% endif %}

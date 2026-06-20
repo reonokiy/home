@@ -15,7 +15,7 @@ rke2-agent-1    RKE2 agent    192.168.122.12
 - `create_vms.yml`：用 `community.libvirt.virt_cloud_instance` 从 AlmaLinux 10 GenericCloud 镜像创建 VM。
 - `install_rke2.yml`：等待 VM SSH 可达，然后调用 `lablabs.rke2` role 安装 RKE2。
 
-VM 内部事务全部通过 Ansible SSH 管理。控制机通过 SSH ProxyCommand 连接到远程宿主机后面的 `192.168.122.x` VM。
+VM 内部事务全部通过 Ansible SSH 管理。控制机通过 SSH ProxyCommand 连接到远程宿主机后面的 `192.168.122.x` VM。默认网络模式使用专用宿主机 bridge `br-rke2`，需要把一块不承载 SSH 管理流量的物理网卡加入这个 bridge。
 
 ## 初始化
 
@@ -30,6 +30,18 @@ python -m pip install -r requirements.txt
 - `config/cluster.yml`：AlmaLinux 镜像、VM 规格、libvirt 网络、RKE2 版本、token、kubeconfig 输出路径。
 
 `inventory/hosts.yml` 里的 known_hosts 路径通过 `{{ inventory_dir }}/../known_hosts` 计算，不依赖固定的本机仓库目录。`libvirt_pool_path` 是远程宿主机上的 VM 磁盘目录，默认是 `/var/lib/libvirt/images/rke2`，需要改磁盘位置时只改 `config/cluster.yml`。
+
+专用网卡模式下必须先在 `config/cluster.yml` 设置：
+
+```yaml
+libvirt_vm_network_mode: "bridge"
+libvirt_vm_bridge_name: "br-rke2"
+libvirt_vm_bridge_manage: true
+libvirt_vm_bridge_physical_interface: "eno1"
+libvirt_vm_bridge_host_ip_cidr: "192.168.122.1/24"
+```
+
+不要把当前 SSH 管理网卡填到 `libvirt_vm_bridge_physical_interface`。playbook 会拒绝桥接当前默认路由接口，避免断开远程连接。
 
 ## 执行
 
@@ -55,7 +67,7 @@ ansible-playbook playbooks/site.yml --ask-become-pass
 generated/rke2.yaml
 ```
 
-因为 VM 在远程宿主机的 libvirt NAT 后面，本机使用 `kubectl` 时需要转发 Kubernetes API：
+因为 VM 在远程宿主机后面，本机使用 `kubectl` 时需要转发 Kubernetes API：
 
 ```bash
 ssh -L 6443:192.168.122.11:6443 iots@iots.i.nokiy.net
@@ -73,9 +85,12 @@ KUBECONFIG=generated/rke2.local.yaml kubectl get nodes
 
 - `almalinux_cloud_image_url`：AlmaLinux 10 GenericCloud qcow2 镜像 URL。
 - `libvirt_pool_path`：远程宿主机上的 VM 磁盘和镜像缓存目录。
-- `libvirt_vm_network_mode`：VM 网络模式，默认 `nat`；使用现有宿主机 bridge 时改为 `bridge`。
+- `libvirt_vm_network_mode`：VM 网络模式，默认 `bridge`。
 - `libvirt_vm_network_name`：`nat` 模式下使用的 libvirt network 名称，默认 `default`。
-- `libvirt_vm_bridge_name`：`bridge` 模式下使用的宿主机 bridge 设备名，默认 `virbr0`。
+- `libvirt_vm_bridge_name`：`bridge` 模式下使用的宿主机 bridge 设备名，默认 `br-rke2`。
+- `libvirt_vm_bridge_physical_interface`：加入 `br-rke2` 的专用物理网卡名，必须手动填写。
+- `rke2_vm_static_network`：是否通过 cloud-init 给 VM 写入静态 IP，bridge 模式默认开启。
+- `rke2_vm_gateway4` / `rke2_vm_dns4`：VM 出公网需要的网关和 DNS；如果专用网络没有上游网关，RKE2 安装阶段可能无法下载组件。
 - `rke2_vm_*`：VM 用户、CPU、内存、磁盘和 cloud-init SSH 公钥。
 - `rke2_version`：RKE2 版本。
 - `rke2_token`：RKE2 server/agent join token，正式使用前应修改。

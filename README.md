@@ -22,7 +22,7 @@ rke2-server-1   RKE2 server   192.168.122.11
 rke2-agent-1    RKE2 agent    192.168.122.12
 ```
 
-VM 默认位于远程 AlmaLinux 宿主机的 libvirt NAT 网络后面。Ansible 通过 SSH ProxyCommand 经宿主机连接 VM。
+VM 默认挂到远程 AlmaLinux 宿主机的专用 bridge `br-rke2`。Ansible 通过 SSH ProxyCommand 经宿主机连接 VM。
 
 ## 使用
 
